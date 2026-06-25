@@ -1,6 +1,5 @@
-# src/preprocess.py
-# PURPOSE: Read raw Landsat .TIF files, extract bands, resize,
-#          normalize, and save paired IR + RGB images for training.
+
+
 
 import os
 import numpy as np
@@ -11,14 +10,13 @@ from glob import glob
 import random
 import shutil
 
-# ─────────────────────────────────────────────
-# CONFIGURATION — change these if needed
-# ─────────────────────────────────────────────
-IMAGE_SIZE = 256          # We resize all images to 256×256 pixels
-TRAIN_SPLIT = 0.8         # 80% training, 20% validation
-RANDOM_SEED = 42          # Makes results reproducible
 
-# Where to find raw files and where to save outputs
+# CONFIGURATION 
+IMAGE_SIZE = 256          
+TRAIN_SPLIT = 0.8         
+RANDOM_SEED = 42         
+
+
 RAW_DIR    = "data/raw"
 OUTPUT_DIR = "data/pairs"
 TRAIN_IR   = os.path.join(OUTPUT_DIR, "train", "ir")
@@ -27,9 +25,7 @@ VAL_IR     = os.path.join(OUTPUT_DIR, "val", "ir")
 VAL_RGB    = os.path.join(OUTPUT_DIR, "val", "rgb")
 
 
-# ─────────────────────────────────────────────
-# STEP 1: READ A SINGLE BAND FROM A .TIF FILE
-# ─────────────────────────────────────────────
+
 def read_band(filepath):
     """
     Reads a single Landsat band .TIF file and returns it as a NumPy array.
@@ -43,9 +39,7 @@ def read_band(filepath):
     return band
 
 
-# ─────────────────────────────────────────────
-# STEP 2: RESIZE IMAGE
-# ─────────────────────────────────────────────
+
 def resize_image(image, size=IMAGE_SIZE):
     """
     Resizes an image (any number of channels) to size×size pixels.
@@ -59,9 +53,7 @@ def resize_image(image, size=IMAGE_SIZE):
     return cv2.resize(image, (size, size), interpolation=cv2.INTER_AREA)
 
 
-# ─────────────────────────────────────────────
-# STEP 3: NORMALIZE PIXEL VALUES TO [0, 1]
-# ─────────────────────────────────────────────
+
 def normalize(image, max_val=None):
     """
     Scales pixel values to the range [0.0, 1.0].
@@ -81,9 +73,7 @@ def normalize(image, max_val=None):
     return image / max_val
 
 
-# ─────────────────────────────────────────────
-# STEP 4: BUILD RGB IMAGE FROM 3 SEPARATE BANDS
-# ─────────────────────────────────────────────
+
 def build_rgb(red_band, green_band, blue_band):
     """
     Stacks three separate band arrays into a single (H, W, 3) RGB image.
@@ -103,9 +93,7 @@ def build_rgb(red_band, green_band, blue_band):
     return rgb.astype(np.float32)
 
 
-# ─────────────────────────────────────────────
-# STEP 5: PROCESS ONE SCENE (one location/date)
-# ─────────────────────────────────────────────
+
 def process_scene(b2_path, b3_path, b4_path, ir_path):
     """
     Given paths to 4 band files for one Landsat scene,
@@ -132,19 +120,17 @@ def process_scene(b2_path, b3_path, b4_path, ir_path):
     b4 = resize_image(b4)
     ir = resize_image(ir)
 
-    # Build RGB from the 3 color bands
+    
     rgb = build_rgb(b4, b3, b2)     # Red=B4, Green=B3, Blue=B2
 
-    # Normalize IR and add a channel dimension: (256, 256) → (256, 256, 1)
+    
     ir = normalize(ir)
     ir = np.expand_dims(ir, axis=-1)  # Shape becomes (256, 256, 1)
 
     return ir, rgb
 
 
-# ─────────────────────────────────────────────
-# STEP 6: SAVE A PAIR TO DISK
-# ─────────────────────────────────────────────
+
 def save_pair(ir, rgb, ir_dir, rgb_dir, index):
     """
     Saves one IR image and its corresponding RGB image as .npy files.
@@ -161,9 +147,7 @@ def save_pair(ir, rgb, ir_dir, rgb_dir, index):
     np.save(os.path.join(rgb_dir, f"rgb_{filename}.npy"), rgb)
 
 
-# ─────────────────────────────────────────────
-# STEP 7: MAIN FUNCTION — runs the whole pipeline
-# ─────────────────────────────────────────────
+
 def run_preprocessing():
     """
     Main function that:
@@ -176,9 +160,7 @@ def run_preprocessing():
     print("Starting preprocessing pipeline...")
     print(f"Looking for files in: {RAW_DIR}")
 
-    # ── Find all B4 files (we use them to discover scenes) ──
-    # Landsat file naming: LC08_..._B4.TIF
-    # We look for B4 and infer the other band paths from the same name
+    
     b4_files = sorted(glob(os.path.join(RAW_DIR, "*_B4.TIF")))
 
     if len(b4_files) == 0:
@@ -189,7 +171,7 @@ def run_preprocessing():
 
     print(f"Found {len(b4_files)} scenes to process.")
 
-    # ── Shuffle and split into train/val ──
+    
     random.seed(RANDOM_SEED)
     random.shuffle(b4_files)
     split_idx   = int(len(b4_files) * TRAIN_SPLIT)
@@ -198,7 +180,7 @@ def run_preprocessing():
 
     print(f"Train: {len(train_files)} | Val: {len(val_files)}")
 
-    # ── Process each split ──
+   
     _process_split(train_files, TRAIN_IR, TRAIN_RGB, split_name="train")
     _process_split(val_files,   VAL_IR,   VAL_RGB,   split_name="val")
 
@@ -214,13 +196,12 @@ def _process_split(b4_files, ir_dir, rgb_dir, split_name):
     os.makedirs(rgb_dir, exist_ok=True)
 
     for idx, b4_path in enumerate(b4_files):
-        # Infer the other band file paths from the B4 filename
-        # e.g. "LC08_..._B4.TIF" → "LC08_..._B2.TIF"
+        
         b2_path = b4_path.replace("_B4.TIF", "_B2.TIF")
         b3_path = b4_path.replace("_B4.TIF", "_B3.TIF")
         ir_path = b4_path.replace("_B4.TIF", "_B10.TIF")  # or _B11.TIF
 
-        # Skip if any required band is missing
+       
         for p in [b2_path, b3_path, ir_path]:
             if not os.path.exists(p):
                 print(f"  Skipping scene {idx+1} — missing file: {p}")
@@ -234,9 +215,6 @@ def _process_split(b4_files, ir_dir, rgb_dir, split_name):
             print(f"  Error processing scene {idx+1}: {e}")
 
 
-# ─────────────────────────────────────────────
-# SYNTHETIC DATA GENERATOR (for testing without Landsat files)
-# ─────────────────────────────────────────────
 def _generate_synthetic_data(n_train=80, n_val=20):
     """
     Creates fake IR and RGB images for testing the pipeline.
@@ -258,9 +236,9 @@ def _generate_synthetic_data(n_train=80, n_val=20):
         os.makedirs(rgb_dir, exist_ok=True)
 
         for i in range(count):
-            # Random grayscale image for IR
+            
             ir  = np.random.rand(IMAGE_SIZE, IMAGE_SIZE, 1).astype(np.float32)
-            # Random color image for RGB
+            
             rgb = np.random.rand(IMAGE_SIZE, IMAGE_SIZE, 3).astype(np.float32)
 
             save_pair(ir, rgb, ir_dir, rgb_dir, i)
@@ -270,9 +248,7 @@ def _generate_synthetic_data(n_train=80, n_val=20):
     print("Synthetic data ready! Replace with real Landsat data later.")
 
 
-# ─────────────────────────────────────────────
-# VISUALIZATION — check your data looks right
-# ─────────────────────────────────────────────
+
 def visualize_sample(ir_path, rgb_path):
     """
     Loads one IR + RGB pair and displays them side by side.
@@ -302,9 +278,6 @@ def visualize_sample(ir_path, rgb_path):
     print("Saved preview to outputs/sample_pair.png")
 
 
-# ─────────────────────────────────────────────
-# RUN THE SCRIPT
-# ─────────────────────────────────────────────
 if __name__ == "__main__":
     # Create output directories
     os.makedirs("outputs", exist_ok=True)
